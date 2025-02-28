@@ -113,24 +113,10 @@ export const parseOCRText = (ocrText: string) => {
   let address = "";
   let gender = "";
   let idIndex = -1;
-  console.log("====Lines===", lines);
+
   if (detectedCountryFromID === "Malaysia") {
     idIndex = id_no ? lines.findIndex((line) => line.includes(id_no)) : -1;
-    if (idIndex !== -1 && idIndex + 1 < lines.length) {
-      name = !isOneWord(lines[idIndex + 1])
-        ? lines[idIndex + 1]
-        : lines[idIndex + 2];
-      const lastName = !isOneWord(lines[idIndex + 1])
-        ? isOneWord(lines[idIndex + 3])
-          ? lines[idIndex + 3]
-          : lines[idIndex + 2]
-        : "";
-      console.log("LAST", lastName);
-      name = name.concat(` ${lastName}`).trim();
-      if (name.startsWith("+")) {
-        name = name.replace("+", "").trim();
-      }
-    }
+    name = extractName(id_no, detectedCountryFromID, cleanedText);
     if (idIndex !== -1 && idIndex + 2 < lines.length) {
       address = lines.slice(idIndex + 2).join(" ");
     }
@@ -145,11 +131,7 @@ export const parseOCRText = (ocrText: string) => {
     // For Singapore, assume the line containing the ID is one line;
     // then the next non-empty line is the name.
     idIndex = id_no ? lines.findIndex((line) => line.includes(id_no)) : -1;
-    if (idIndex !== -1 && idIndex + 1 < lines.length) {
-      name = lines[idIndex + 1];
-    } else {
-      name = lines[2] || "";
-    }
+    name = extractName(id_no, detectedCountryFromID, cleanedText);
     address = lines.slice(idIndex + 2).join(" ");
     gender = "";
   } else if (detectedCountryFromID === "China") {
@@ -273,4 +255,41 @@ const isOneWord = (str: string) => {
   return /^[^\s]+$/.test(str);
 };
 
-const extractName = (lines: string[], detectedCountryFromID: string) => {};
+const extractName = (
+  id_no: string,
+  detectedCountryFromID: string,
+  cleanedText: string
+) => {
+  const cleanedTextArray = cleanedText.split("\n");
+  const idIndex = id_no
+    ? cleanedTextArray.findIndex((line) => line.includes(id_no))
+    : -1;
+
+  if (detectedCountryFromID !== "China") {
+    // const linesToCheck =
+
+    const nameArray: string[] = [];
+    // Getting all the lines other than the ID number
+    const linesToCheck = cleanedTextArray.slice(idIndex + 1);
+    // Get the index from linesToCheck that has a number, so that we only need to check till that index
+    const numberIndex = linesToCheck.findIndex((str: string) => /\d/.test(str));
+    linesToCheck.forEach((line, index) => {
+      // The following condition will omit empty strings,oneWords and also ignore all elements from the numberIndex
+      if (line !== "" && index < numberIndex && !isOneWord(line)) {
+        // Usually the text in IDs can be a maximum of 2 lines
+        if (nameArray.length < 2) {
+          nameArray.push(line);
+          // checking if the next line is one word or not so that it doesn't get ignored.
+          if (isOneWord(linesToCheck[index + 1]))
+            nameArray.push(linesToCheck[index + 1]);
+        }
+      }
+    });
+    let name = nameArray.join(" ").trim();
+
+    if (name.startsWith("+")) {
+      name = name.replace("+", "").trim();
+    }
+    return name;
+  } else return "";
+};
